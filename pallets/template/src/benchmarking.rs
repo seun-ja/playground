@@ -13,7 +13,7 @@ benchmarks! {
 		let caller: T::AccountId = whitelisted_caller();
 	}: _(RawOrigin::Signed(caller.clone()))
 	verify {
-		assert_eq!(Members::<T>::get(), Some(vec![caller]));
+		assert_eq!(ClubMembers::<T>::get(1), Some(vec![caller]));
 	}
 
 	impl_benchmark_test_suite!(Template, crate::mock::new_test_ext(), crate::mock::Test);

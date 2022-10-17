@@ -35,16 +35,25 @@ pub mod pallet {
 
 	#[pallet::storage]
 	#[pallet::getter(fn club_members)]
-	pub(super) type ClubMembers<T: Config> = StorageMap<_, Blake2_128Concat, u32, Vec<T::AccountId>, ValueQuery>;
+	pub(super) type ClubMembers<T: Config> = StorageMap<_, Blake2_128Concat, u32, ClubMembership<T>, ValueQuery>;
 
-	#[pallet::storage]
-	#[pallet::getter(fn members)]
-	pub(super) type Members<T: Config> = StorageValue<_, Vec<T::AccountId>>; //members
+	pub type ClubMembership<T> = Club<<T as frame_system::Config>::AccountId>;
 
-	#[derive(Encode, Decode, Clone, RuntimeDebug)]
-	pub struct Club<T> {
+	pub type Membership<T> = <T as frame_system::Config>::AccountId;
+
+	#[derive(Encode, Decode, Clone, RuntimeDebug, PartialEq, TypeInfo)]
+	pub struct Club<AccountId> {
 		pub id: u32,
-		members: Vec<T>,
+		members: Vec<AccountId>,
+	}
+
+	impl<AccountId> Default for Club<AccountId> {
+		fn default() -> Self { 
+			Self {
+				id: 1,
+				members: [].into()
+			}
+		}
 	}
 
 	// Pallets use events to inform users when important changes are made.
@@ -52,6 +61,8 @@ pub mod pallet {
 	#[pallet::event]
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
 	pub enum Event<T: Config> {
+		/// Introduce Club
+		Club(u32, T::AccountId),
 		/// Add member to the Club
 		AddMember(T::AccountId),
 		/// Remove member to the Club
@@ -77,10 +88,24 @@ pub mod pallet {
 	#[pallet::call]
 	impl<T: Config> Pallet<T> {
 		#[pallet::weight(10_000)]
-		pub fn add_member(origin: OriginFor<T>) -> DispatchResult {
+		pub fn create_club(origin: OriginFor<T>) -> DispatchResult {
 			let who = ensure_signed_or_root(origin).unwrap().unwrap();
 
-			<Members<T>>::append(who.clone());
+			// should be a random, but hardcoded for now
+			let club_id = 1;
+
+			Self::deposit_event(Event::Club(club_id, who));
+
+			Ok(())
+		}
+
+		#[pallet::weight(10_000)]
+		pub fn add_member(origin: OriginFor<T>, club_id: u32) -> DispatchResult {
+			let who = ensure_signed_or_root(origin).unwrap().unwrap();
+
+			let mut club = <ClubMembers<T>>::get(club_id);
+
+			club.members.push(who.clone());
 
 			Self::deposit_event(Event::AddMember(who));
 
@@ -91,8 +116,16 @@ pub mod pallet {
 		pub fn remove_member(origin: OriginFor<T>, club_id: u32) -> DispatchResult {
 			let who = ensure_signed_or_root(origin).unwrap().unwrap();
 
-			if <ClubMembers<T>>::get(club_id).contains(&who.clone()) {
-				<Members<T>>::take();
+			let mut index = 0;
+
+			if <ClubMembers<T>>::get(club_id).members.contains(&who.clone()) {
+				for member in <ClubMembers<T>>::get(club_id).members {
+					if who == member {
+						<ClubMembers<T>>::get(club_id).members.remove(index);
+					}
+
+					index += 1;
+				}
 			};			
 
 			Self::deposit_event(Event::RemoveMember(who));
